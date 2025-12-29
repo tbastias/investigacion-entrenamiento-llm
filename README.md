@@ -246,11 +246,25 @@ Permite que todas las secuencias tengan la misma longitud.
 
 Normalmente se ignora usando `attention_mask`.
 
+**Ejemplo conceptual:**
+
+- Texto corto se rellena con `<PAD>`
+- `attention_mask = 0` para esos tokens
+
+**Caso común:**
+
+- Muchos modelos no tienen `PAD` nativo
+- Se usa `pad_token_id` = `eos_token_id`
+
 ## eos_token_id
 
 Token que indica el final de una secuencia.
 
 Cuando el modelo lo genera, **la respuesta se detiene**.
+
+**Ejemplo:**
+
+- `“Hola, ¿en qué ayudo?” + <EOS>` → se corta la generación
 
 ## apply_chat_template
 
@@ -284,6 +298,7 @@ Hola
 - Más tolerante a errores
 
 **Formato conceptual:**
+
 ```
 <s>[INST] Hola [/INST]
 ```
@@ -345,11 +360,9 @@ CONTEXTO (opcional):
   Información adicional
 
 RESPUESTA:
+``` 
 
-
-❗``` U
-
-sar el template incorrecto produce respuestas erráticas.
+❗Usar el template incorrecto produce respuestas erráticas.
 
 ---
 
@@ -381,29 +394,99 @@ Controla la aleatoriedad de las probabilidades.
 
 Limita la elección a los `k` tokens más probables.
 
+Siempre es un número fijo.
+
+Más predecible.
+
 Reduce ruido y tokens raros.
+
+**Ejemplo:**
+
+`top_k = 50` → solo puede elegir entre esos 50 tokens
 
 ## top_p (nucleus sampling)
 
 Elige tokens cuya probabilidad acumulada sea menor a `p`.
 
+Limita por probabilidad acumulada.
+
+El conjunto cambia dinámicamente.
+
+Más natural en texto largo.
+
 Más dinámico que `top_k`.
+
+**Ejemplo:**
+
+`top_p = 0.9` → toma los tokens necesarios para sumar 90% de probabilidad
+
+### Regla práctica entre top_k y top_p
+
+- `top_k` = control rígido
+- `top_p` = control adaptativo
+- No suele usarse `top_k` y `top_p` fuertes al mismo tiempo
 
 ---
 
 # ⚙️ Implementación de atención
 
-## attn_implementation="eager"
+Es cómo se calcula internamente la atención:
 
-Usa la implementación clásica de atención.
+- 🔴 No cambia la respuesta
+- 🟢 Cambia velocidad, memoria y compatibilidad
 
-✔️ Más compatible  
-✔️ Ideal para debugging o CPU  
-❌ Más lenta que flash attention
+A continuación los tipos de implementación utilizados por **PyTorch**
 
-Otras opciones:
-- `sdpa`
-- `flash_attention_2`
+## eager: Atención clásica
+
+Todo ocurre en memoria, sin fusiones.
+
+✅ Ventajas
+- Máxima compatibilidad
+- Fácil de debugear
+- Funciona en CPU
+
+❌ Desventajas
+- Lento
+- Mucha memoria
+- Escala mal con contexto largo
+- Usa la implementación clásica de atención.
+
+## sdpa: Scaled Dot Product Attention
+
+👉 **PyTorch** elige:
+- eager
+- flash
+- math kernel
+
+✅ Ventajas
+- Más rápido que eager
+- Menos memoria
+- Muy estable
+
+❌ Desventajas
+- Menos control fino
+- Debugging más difícil
+
+## flash_attention / flash_attention_2
+
+👉 Todo pasa en un solo kernel CUDA.
+
+✅ Ventajas
+- Muchísimo más rápido
+- Mucho menos VRAM
+- Ideal para contextos largos
+
+❌ Desventajas
+- Requiere GPU moderna
+- Menos tolerante a hardware viejo
+- Debugging difícil
+
+## Regla mental final
+
+CPU / debugging → `eager`
+GPU común       → `sdpa`
+GPU moderna     → `flash_attention_2`
 
 ---
 
